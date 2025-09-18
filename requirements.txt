@@ -1,5 +1,5 @@
 python-telegram-bot[all]==20.7
-edge-tts==6.1.9
+edge-tts==7.2.3
 aiofiles==23.2.1
 ebooklib==0.18
 beautifulsoup4==4.12.2
