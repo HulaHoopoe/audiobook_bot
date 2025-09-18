@@ -1,2 +1,7 @@
 /assets
 /venv
+/logs/*
+/cache/*
+/temp/*
+/music_library/*
+bookbot.db
