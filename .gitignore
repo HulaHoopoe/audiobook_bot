@@ -4,4 +4,7 @@
 /cache/*
 /temp/*
 /music_library/*
+/assets/*
 bookbot.db
+bookvoice.db
+.env
