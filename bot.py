@@ -511,54 +511,90 @@ class BookVoiceBot:
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+
         data = query.data
-        
         chapters_data = context.user_data.get('chapters', [])
+
         if not chapters_data:
             await query.edit_message_text("⚠️ Нет данных о книге. Загрузите файл заново.")
             return
-        
+
         if data.startswith("page_"):
             page = int(data.split("_")[1])
             await query.edit_message_reply_markup(
                 reply_markup=self.kb.get_chapters_inline(chapters_data, page)
             )
             return
-            
+
         if data.startswith("play_"):
             idx = int(data.split("_")[1])
             if idx >= len(chapters_data):
                 await query.answer("Глава не найдена")
                 return
-            
+
             ch_data = chapters_data[idx]
             chapter_title = ch_data['title']
             chapter_text = ch_data['text']
-            
+
             user = self.db.get_user(query.from_user.id)
             voice_code = user['voice'] if user else 'male'
             voice = VOICES.get(voice_code, VOICES['male'])
-            
+
             # Валидация текста
             tts_text = self.preprocessor.validate_tts_text(chapter_text)
             if not tts_text:
                 await query.edit_message_text("❌ Глава слишком короткая для озвучивания.")
                 return
-            
+
             await query.edit_message_text(
                 f"🎧 Начинаю озвучивать **{chapter_title[:50]}**...\n"
-                f"⏳ Это займет несколько секунд.",
+                f"⏳ Подключение к серверу...",
                 parse_mode="Markdown"
             )
-            
+
             audio_path = os.path.join(self.temp_dir, f"chapter_{idx}.mp3")
-            
+
             try:
                 communicate = edge_tts.Communicate(tts_text, voice)
-                await communicate.save(audio_path)
                 
+                # === НАЧАЛО БЛОКА С ПРОГРЕСС БАРОМ ===
+                file_size = 0
+                last_update_time = 0
+                update_interval = 2.0  # Интервал обновления в секундах
+                
+                # Визуальные фазы прогресс-бара
+                bars = [
+                    "⬜⬜⬜⬜⬜", "⬛⬜⬜⬜⬜", "⬛⬛⬜⬜⬜", 
+                    "⬛⬛⬛⬜⬜", "⬛⬛⬛⬛⬜", "⬛⬛⬛⬛⬛"
+                ]
+                bar_step = 0
+
+                with open(audio_path, "wb") as f:
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            data_chunk = chunk["data"]
+                            f.write(data_chunk)
+                            file_size += len(data_chunk)
+                            
+                            current_time = asyncio.get_running_loop().time()
+                            if current_time - last_update_time > update_interval:
+                                last_update_time = current_time
+                                size_mb = file_size / (1024 * 1024)
+                                bar_visual = bars[bar_step % len(bars)]
+                                bar_step += 1
+                                
+                                try:
+                                    await query.edit_message_text(
+                                        f"🎧 Озвучиваю: **{chapter_title[:50]}**\n"
+                                        f"{bar_visual} ({size_mb:.2f} MB)\n"
+                                        f"⏳ Генерация аудио...",
+                                        parse_mode="Markdown"
+                                    )
+                                except Exception:
+                                    pass # Игнорируем ошибки сети при редактировании
+                # === КОНЕЦ БЛОКА С ПРОГРЕСС БАРОМ ===
+
                 book_title = context.user_data.get('book_title', 'Книга')
-                
                 with open(audio_path, 'rb') as audio:
                     await query.message.reply_audio(
                         audio=audio,
@@ -568,9 +604,9 @@ class BookVoiceBot:
                         parse_mode="Markdown",
                         reply_markup=self.kb.get_main_menu(book_title)
                     )
-                
+
                 self.db.add_history(query.from_user.id, book_title, chapter_title)
-                
+
             except edge_tts.exceptions.NoAudioReceived:
                 await query.edit_message_text(
                     "❌ Ошибка озвучивания. Попробуйте:\n"
@@ -583,6 +619,7 @@ class BookVoiceBot:
             finally:
                 if os.path.exists(audio_path):
                     os.remove(audio_path)
+
 
     async def _extract_text(self, path: str, ext: str) -> str:
         try:
