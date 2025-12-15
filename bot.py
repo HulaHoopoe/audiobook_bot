@@ -485,7 +485,6 @@ class BookVoiceBot:
             clean_text = await self.preprocessor.clean_text(raw_text)
             chapters = self.preprocessor.analyze_chapters(clean_text)
             
-            # ✅ ИСПРАВЛЕНИЕ: сохраняем как List[Dict], а не List[Chapter]
             context.user_data['chapters'] = [asdict(c) for c in chapters]
             context.user_data['book_title'] = doc.file_name
             
@@ -499,7 +498,7 @@ class BookVoiceBot:
                 os.remove(file_path)
 
             await msg.edit_text(
-                f"✅ Текст успешно извлечён!\nНайдено **{len(chapters)} глав**.\n\n"
+                f"Текст успешно извлечён!\nНайдено **{len(chapters)} глав**.\n\n"
                 f"🎯 **Выберите одну главу для озвучивания:**",
                 parse_mode="Markdown",
                 reply_markup=self.kb.get_chapters_inline(context.user_data['chapters'])
@@ -519,7 +518,6 @@ class BookVoiceBot:
             await query.edit_message_text("⚠️ Нет данных о книге. Загрузите файл заново.")
             return
         
-        # ✅ ИСПРАВЛЕНИЕ: работаем только с Dict, не создаем Chapter здесь
         if data.startswith("page_"):
             page = int(data.split("_")[1])
             await query.edit_message_reply_markup(
@@ -533,7 +531,6 @@ class BookVoiceBot:
                 await query.answer("Глава не найдена")
                 return
             
-            # ✅ ИСПРАВЛЕНИЕ: извлекаем данные напрямую из словаря
             ch_data = chapters_data[idx]
             chapter_title = ch_data['title']
             chapter_text = ch_data['text']
@@ -567,7 +564,7 @@ class BookVoiceBot:
                         audio=audio,
                         title=chapter_title[:90],
                         performer="BookVoice",
-                        caption=f"✅ Готово! 🙌\n\n*{book_title}*\n{chapter_title}",
+                        caption=f"Готово! 🙌 Вот ваша озвучка:\n\n*{book_title}*\n{chapter_title}",
                         parse_mode="Markdown",
                         reply_markup=self.kb.get_main_menu(book_title)
                     )
